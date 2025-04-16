@@ -1,0 +1,56 @@
+{
+	"name": "@kirick/mysql",
+	"version": "0.1.0-dev",
+	"description": "",
+	"publishConfig": {
+		"access": "public"
+	},
+	"type": "module",
+	"main": "dist/esm/main.js",
+	"types": "dist/esm/main.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/esm/main.js",
+			"require": "./dist/main.cjs"
+		}
+	},
+	"engines": {
+		"node": ">=14.8"
+	},
+	"dependencies": {
+		"mysql2": "^3.14.0",
+		"sql-template-tag": "^5.2.1"
+	},
+	"devDependencies": {
+		"@kirick/eslint-config": "latest",
+		"@types/bun": "^1.1.6",
+		"@types/node": "^20.14.10",
+		"eslint": "9.10.0",
+		"typescript": "5.5.4",
+		"vitest": "2.1.1"
+	},
+	"scripts": {
+		"build": "bun run build:ts && bun run build:cjs",
+		"build:cjs": "bunx esbuild --bundle --platform=node --format=cjs --packages=external --outfile=dist/main.cjs dist/esm/main.js",
+		"build:ts": "rm -r dist/esm dist/types ; tsc",
+		"lint": "eslint . && tsc --skipLibCheck --noemit",
+		"publish:npm": "bun run build && bun run lint && bun run test && npm publish",
+		"test": "npm run test:vitest && bun test --coverage",
+		"test:vitest": "vitest run --no-file-parallelism"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/kirick13/mysql.git"
+	},
+	"keywords": [
+		"mysql",
+		"client",
+		"sql"
+	],
+	"author": "Daniil Kirichenko (https://twitter.com/kirickme)",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/kirick13/mysql/issues"
+	},
+	"homepage": "https://github.com/kirick13/mysql#readme"
+}
