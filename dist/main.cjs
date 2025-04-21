@@ -92,6 +92,34 @@ function set(row) {
   }
   return sqls;
 }
+function extendSql(value) {
+  return Object.defineProperties(value, {
+    empty: {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createSql``
+    },
+    id: {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: id
+    },
+    insert: {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: insert
+    },
+    set: {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: set
+    }
+  });
+}
 function toSql(value, depth = 0) {
   if (Array.isArray(value) || value instanceof Set) {
     const result_sql_parts = [];
@@ -122,45 +150,21 @@ function createSql(query, ...values) {
   }
   return new Sql(result_sql_parts.join(""), result_values);
 }
-var sql = Object.defineProperties(createSql, {
-  empty: {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: createSql``
-  },
-  id: {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: id
-  },
-  insert: {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: insert
-  },
-  set: {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: set
-  }
-});
+var sql = extendSql(createSql);
 
 // dist/esm/client.js
 function mysql(config) {
   const raw_client = import_promise.default.createPool(config);
+  async function createSql2(query, ...values) {
+    const [result] = await raw_client.query(sql(query, ...values));
+    return result;
+  }
   return {
     // client: raw_client,
     // get config() {
     // 	return raw_client.pool.config.connectionConfig;
     // },
-    async sql(query, ...values) {
-      const [result] = await raw_client.query(sql(query, ...values));
-      return result;
-    }
+    sql: extendSql(createSql2)
   };
 }
 // Annotate the CommonJS export names for ESM import in node:

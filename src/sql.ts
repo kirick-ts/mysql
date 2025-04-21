@@ -97,12 +97,49 @@ function set(row: Record<string, unknown>): Sql[] {
 	return sqls;
 }
 
-type SqlExtension = {
+export type SqlExtension = {
 	empty: Sql,
 	id: typeof id,
 	insert: typeof insert,
 	set: typeof set,
 };
+
+/**
+ * Extends a value with SQL extension methods.
+ * @param value -
+ * @returns -
+ */
+export function extendSql<const T>(value: T): T & SqlExtension {
+	return Object.defineProperties(
+		value,
+		{
+			empty: {
+				configurable: false,
+				enumerable: false,
+				writable: false,
+				value: createSql``,
+			},
+			id: {
+				configurable: false,
+				enumerable: false,
+				writable: false,
+				value: id,
+			},
+			insert: {
+				configurable: false,
+				enumerable: false,
+				writable: false,
+				value: insert,
+			},
+			set: {
+				configurable: false,
+				enumerable: false,
+				writable: false,
+				value: set,
+			},
+		},
+	) as T & SqlExtension;
+}
 
 /**
  * Converts a value to a SQL string representation.
@@ -171,32 +208,4 @@ function createSql(query: TemplateStringsArray, ...values: unknown[]): Sql {
 	);
 }
 
-export const sql = Object.defineProperties(
-	createSql,
-	{
-		empty: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: createSql``,
-		},
-		id: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: id,
-		},
-		insert: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: insert,
-		},
-		set: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: set,
-		},
-	},
-) as typeof createSql & SqlExtension;
+export const sql = extendSql(createSql);
