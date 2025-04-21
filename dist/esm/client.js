@@ -9,9 +9,9 @@ export function mysql(config) {
     const raw_client = mysql2.createPool(config);
     return {
         // client: raw_client,
-        get config() {
-            return raw_client.config;
-        },
+        // get config() {
+        // 	return raw_client.pool.config.connectionConfig;
+        // },
         async sql(query, ...values) {
             const [result] = await raw_client.query(sql(query, ...values));
             return result;

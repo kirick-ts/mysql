@@ -3,7 +3,7 @@ import { sql } from './sql.js';
 
 export type MysqlClient = {
 	// readonly client: mysql2.Pool,
-	readonly config: mysql2.ConnectionOptions,
+	// readonly config: mysql2.ConnectionOptions,
 	sql<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>,
 };
 
@@ -17,9 +17,9 @@ export function mysql(config: mysql2.PoolOptions): MysqlClient {
 
 	return {
 		// client: raw_client,
-		get config() {
-			return raw_client.config;
-		},
+		// get config() {
+		// 	return raw_client.pool.config.connectionConfig;
+		// },
 		async sql<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T> {
 			const [ result ] = await raw_client.query(
 				sql(query, ...values),

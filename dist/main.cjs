@@ -39,55 +39,96 @@ module.exports = __toCommonJS(main_exports);
 var import_promise = __toESM(require("mysql2/promise"), 1);
 
 // dist/esm/sql.js
-var sqlTemplateTag = __toESM(require("sql-template-tag"), 1);
+var Sql = class {
+  sql;
+  values;
+  // eslint-disable-next-line no-useless-constructor
+  constructor(sql2, values) {
+    this.sql = sql2;
+    this.values = values;
+  }
+};
+var SqlIdentifier = class {
+  id;
+  // eslint-disable-next-line no-useless-constructor
+  constructor(id2) {
+    this.id = id2;
+  }
+};
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function id(name) {
-  return new sqlTemplateTag.Sql(["", "?"], [name]);
+  return new SqlIdentifier(name);
 }
 function insert(arg0) {
   if (isPlainObject(arg0)) {
     return insert([arg0]);
   }
-  const rows_keys = Object.keys(arg0[0]);
+  const rows_keys = [];
   const rows_values = [];
-  for (const [index, row] of arg0.entries()) {
-    for (const key of Object.keys(row)) {
-      if (!rows_keys.includes(key)) {
-        throw new Error(`Unexpected key "${key}" in row ${index}.`);
+  for (const row of structuredClone(arg0)) {
+    const row_values = [];
+    for (const key of rows_keys) {
+      row_values.push(row[key] ?? null);
+      delete row[key];
+    }
+    for (const [key, value] of Object.entries(row)) {
+      rows_keys.push(key);
+      row_values.push(value);
+      for (const prev_row_values of rows_values) {
+        prev_row_values.push(null);
       }
     }
-    rows_values.push(Object.values(row));
+    rows_values.push(row_values);
   }
-  const keys_sql = new sqlTemplateTag.Sql([
-    "(?",
-    ...Array.from({ length: rows_keys.length - 1 }).fill(",?"),
-    ")"
-  ], rows_keys);
-  return sqlTemplateTag.default`${keys_sql} VALUES ${sqlTemplateTag.bulk(rows_values)}`;
+  const ids = rows_keys.map((name) => new SqlIdentifier(name));
+  return createSql`(${ids}) VALUES ${rows_values}`;
 }
 function set(row) {
-  const row_entries = Object.entries(row);
-  const values = [];
-  for (const [key, value] of row_entries) {
-    values.push(key, value);
+  const sqls = [];
+  for (const [key, value] of Object.entries(row)) {
+    sqls.push(createSql`${new SqlIdentifier(key)}=${value}`);
   }
-  const sql_parts = [];
-  for (let index = 0; index < row_entries.length; index++) {
-    sql_parts.push(`${index > 0 ? "," : ""}?`, "=");
+  return sqls;
+}
+function toSql(value, depth = 0) {
+  if (Array.isArray(value) || value instanceof Set) {
+    const result_sql_parts = [];
+    const result_values = [];
+    for (const item of value) {
+      const sql_nested = toSql(item, depth + 1);
+      result_sql_parts.push(sql_nested.sql);
+      result_values.push(...sql_nested.values);
+    }
+    return new Sql((depth > 0 ? "(" : "") + result_sql_parts.join(",") + (depth > 0 ? ")" : ""), result_values);
   }
-  sql_parts.push("");
-  return new sqlTemplateTag.Sql(sql_parts, values);
+  if (value instanceof Sql) {
+    return value;
+  }
+  if (value instanceof SqlIdentifier) {
+    return new Sql("??", [value.id]);
+  }
+  return new Sql("?", [value]);
 }
 function createSql(query, ...values) {
-  const sql_query = new sqlTemplateTag.Sql(query, values);
-  return {
-    sql: sql_query.sql,
-    values: sql_query.values
-  };
+  const result_sql_parts = [query[0]];
+  const result_values = [];
+  for (const [index, value] of values.entries()) {
+    const sql_nested = toSql(value);
+    result_sql_parts.push(sql_nested.sql);
+    result_values.push(...sql_nested.values);
+    result_sql_parts.push(query[index + 1]);
+  }
+  return new Sql(result_sql_parts.join(""), result_values);
 }
 var sql = Object.defineProperties(createSql, {
+  empty: {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: createSql``
+  },
   id: {
     configurable: false,
     enumerable: false,
@@ -113,9 +154,9 @@ function mysql(config) {
   const raw_client = import_promise.default.createPool(config);
   return {
     // client: raw_client,
-    get config() {
-      return raw_client.config;
-    },
+    // get config() {
+    // 	return raw_client.pool.config.connectionConfig;
+    // },
     async sql(query, ...values) {
       const [result] = await raw_client.query(sql(query, ...values));
       return result;

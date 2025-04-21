@@ -9,7 +9,7 @@ describe('sql``', () => {
 	test('no values', () => {
 		expect(
 			sql`SELECT 1`,
-		).toStrictEqual({
+		).toMatchObject({
 			sql: 'SELECT 1',
 			values: [],
 		});
@@ -20,7 +20,7 @@ describe('sql``', () => {
 
 		expect(
 			sql`SELECT * FROM users WHERE name = ${name}`,
-		).toStrictEqual({
+		).toMatchObject({
 			sql: 'SELECT * FROM users WHERE name = ?',
 			values: [ 'Alice' ],
 		});
@@ -31,50 +31,58 @@ describe('sql``', () => {
 
 		expect(
 			sql`SELECT * FROM users WHERE user_id = ${1} OR name = ${name}`,
-		).toStrictEqual({
+		).toMatchObject({
 			sql: 'SELECT * FROM users WHERE user_id = ? OR name = ?',
 			values: [ 1, 'Alice' ],
 		});
 	});
 
-	// test('string', () => {
-	// 	const name = 'Alice';
+	test('array', () => {
+		const names = [ 'Alice', 'Bob' ];
 
-	// 	expect(
-	// 		sql`SELECT * FROM users WHERE name = ${name}`,
-	// 	).toStrictEqual({
-	// 		sql: 'SELECT * FROM users WHERE name = ?',
-	// 		values: [ 'Alice' ],
-	// 	});
-	// });
+		expect(
+			sql`SELECT * FROM users WHERE name IN (${names})`,
+		).toMatchObject({
+			sql: 'SELECT * FROM users WHERE name IN (?,?)',
+			values: [ 'Alice', 'Bob' ],
+		});
+	});
 
-	// test('number', () => {
-	// 	const user_id = 1;
+	test('array of arrays', () => {
+		const names = [
+			[ 'Alice', 'alice@example.com' ],
+			[ 'Bob', 'bob@example.com' ],
+		];
 
-	// 	expect(
-	// 		sql`SELECT * FROM users WHERE user_id = ${user_id}`,
-	// 	).toStrictEqual({
-	// 		sql: 'SELECT * FROM users WHERE user_id = ?',
-	// 		values: [ 1 ],
-	// 	});
-	// });
+		expect(
+			sql`INSERT INTO users (name, email) VALUES ${names}`,
+		).toMatchObject({
+			sql: 'INSERT INTO users (name, email) VALUES (?,?),(?,?)',
+			values: [
+				'Alice',
+				'alice@example.com',
+				'Bob',
+				'bob@example.com',
+			],
+		});
+	});
 
-	// test('date', () => {
-	// 	const date = new Date(1744804236086);
+	test('nested sql', () => {
+		const name = 'Alice';
 
-	// 	expect(
-	// 		sql`SELECT * FROM users WHERE registered_at < ${date}`,
-	// 	).toStrictEqual({
-	// 		sql: 'SELECT * FROM users WHERE registered_at < ?',
-	// 		values: [ '2025-04-16T11:50:36.086Z' ],
-	// 	});
-	// });
+		expect(
+			sql`SELECT * FROM users WHERE user_id = ${1} ${'test' in globalThis ? sql.empty : sql`OR name = ${name}`}`,
+		).toMatchObject({
+			sql: 'SELECT * FROM users WHERE user_id = ? OR name = ?',
+			values: [ 1, 'Alice' ],
+		});
+	});
 });
 
 test('sql.id', () => {
 	expect(
 		sql`SELECT * FROM ${sql.id('users')} WHERE ${sql.id('user_id')} = ${1}`,
-	).toStrictEqual({
+	).toMatchObject({
 		sql: 'SELECT * FROM ?? WHERE ?? = ?',
 		values: [
 			'users',
@@ -91,7 +99,7 @@ describe('sql.insert', () => {
 				name: 'Alice',
 				email: 'alice@example.com',
 			})}`,
-		).toStrictEqual({
+		).toMatchObject({
 			sql: 'INSERT INTO users (??,??) VALUES (?,?)',
 			values: [
 				'name',
@@ -114,7 +122,7 @@ describe('sql.insert', () => {
 					email: 'bob@example.com',
 				},
 			])}`,
-		).toStrictEqual({
+		).toMatchObject({
 			sql: 'INSERT INTO users (??,??) VALUES (?,?),(?,?)',
 			values: [
 				'name',
@@ -134,7 +142,7 @@ test('sql.set', () => {
 			name: 'Alice',
 			email: 'alice@example.com',
 		})}`,
-	).toStrictEqual({
+	).toMatchObject({
 		sql: 'UPDATE users SET ??=?,??=?',
 		values: [
 			'name',

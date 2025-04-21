@@ -1,6 +1,5 @@
 import mysql2 from 'mysql2/promise';
 export type MysqlClient = {
-    readonly config: mysql2.ConnectionOptions;
     sql<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 /**
