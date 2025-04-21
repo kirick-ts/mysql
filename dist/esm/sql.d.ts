@@ -28,18 +28,12 @@ declare function insert(rows: Record<string, unknown>[]): Sql;
  * @returns -
  */
 declare function set(row: Record<string, unknown>): Sql[];
-export type SqlExtension = {
+type SqlExtension = {
     empty: Sql;
     id: typeof id;
     insert: typeof insert;
     set: typeof set;
 };
-/**
- * Extends a value with SQL extension methods.
- * @param value -
- * @returns -
- */
-export declare function extendSql<const T>(value: T): T & SqlExtension;
 /**
  * Creates SQL Query object from template string tag.
  * @param query -

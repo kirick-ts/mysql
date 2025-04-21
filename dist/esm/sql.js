@@ -71,39 +71,6 @@ function set(row) {
     return sqls;
 }
 /**
- * Extends a value with SQL extension methods.
- * @param value -
- * @returns -
- */
-export function extendSql(value) {
-    return Object.defineProperties(value, {
-        empty: {
-            configurable: false,
-            enumerable: false,
-            writable: false,
-            value: createSql ``,
-        },
-        id: {
-            configurable: false,
-            enumerable: false,
-            writable: false,
-            value: id,
-        },
-        insert: {
-            configurable: false,
-            enumerable: false,
-            writable: false,
-            value: insert,
-        },
-        set: {
-            configurable: false,
-            enumerable: false,
-            writable: false,
-            value: set,
-        },
-    });
-}
-/**
  * Converts a value to a SQL string representation.
  * @param value -
  * @param depth -
@@ -145,4 +112,29 @@ function createSql(query, ...values) {
     }
     return new Sql(result_sql_parts.join(''), result_values);
 }
-export const sql = extendSql(createSql);
+export const sql = Object.defineProperties(createSql, {
+    empty: {
+        configurable: false,
+        enumerable: false,
+        writable: false,
+        value: createSql ``,
+    },
+    id: {
+        configurable: false,
+        enumerable: false,
+        writable: false,
+        value: id,
+    },
+    insert: {
+        configurable: false,
+        enumerable: false,
+        writable: false,
+        value: insert,
+    },
+    set: {
+        configurable: false,
+        enumerable: false,
+        writable: false,
+        value: set,
+    },
+});
