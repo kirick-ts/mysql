@@ -1,16 +1,16 @@
 {
 	"name": "@kirick/mysql",
 	"version": "0.1.0-dev",
-	"description": "",
+	"description": "MySQL / MariaDB client with template string support.",
 	"publishConfig": {
 		"access": "public"
 	},
 	"type": "module",
-	"main": "dist/esm/main.js",
-	"types": "dist/esm/main.d.ts",
+	"main": "dist/main.js",
+	"types": "dist/main.d.ts",
 	"exports": {
 		".": {
-			"import": "./dist/esm/main.js",
+			"import": "./dist/main.js",
 			"require": "./dist/main.cjs"
 		}
 	},
@@ -18,27 +18,26 @@
 		"node": ">=17"
 	},
 	"dependencies": {
-		"mysql2": "^3.14.0"
+		"mysql2": "3.14.1"
 	},
 	"devDependencies": {
-		"@kirick/eslint-config": "latest",
-		"@types/bun": "^1.2.10",
+		"@kirick/eslint-config": "0.1.30",
 		"@types/node": "^22.14.1",
 		"eslint": "9.10.0",
-		"typescript": "5.8.3"
+		"publint": "^0.3.12",
+		"tsdown": "^0.10.0",
+		"typescript": "5.8.3",
+		"unplugin-unused": "^0.4.4"
 	},
 	"scripts": {
-		"build": "bun run build:ts && bun run build:cjs",
-		"build:cjs": "bunx esbuild --bundle --platform=node --format=cjs --packages=external --outfile=dist/main.cjs dist/esm/main.js",
-		"build:ts": "rm -r dist/esm dist/types ; tsc",
+		"build": "tsdown src/main.ts --publint --unused --dts --format esm --format cjs && rm dist/main.d.cts",
 		"check": "bun run lint && bun run build && bun run test",
 		"lint": "eslint . && tsc --skipLibCheck --noemit",
-		"publish:npm": "bun run build && bun run lint && bun run test && npm publish",
 		"test": "bun test --coverage"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/kirick13/mysql.git"
+		"url": "git+https://github.com/kirick-ts/mysql.git"
 	},
 	"keywords": [
 		"mysql",
@@ -48,7 +47,7 @@
 	"author": "Daniil Kirichenko (https://twitter.com/kirickme)",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/kirick13/mysql/issues"
+		"url": "https://github.com/kirick-ts/mysql/issues"
 	},
-	"homepage": "https://github.com/kirick13/mysql#readme"
+	"homepage": "https://github.com/kirick-ts/mysql#readme"
 }

@@ -1,28 +1,4 @@
-"use strict";
-//#region rolldown:runtime
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __copyProps = (to, from, except, desc) => {
-	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
-		key = keys[i];
-		if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
-			get: ((k) => from[k]).bind(null, key),
-			enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
-		});
-	}
-	return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
-	value: mod,
-	enumerable: true
-}) : target, mod));
-
-//#endregion
-const mysql2_promise = __toESM(require("mysql2/promise"));
+import mysql2 from "mysql2/promise";
 
 //#region src/sql.ts
 var Sql = class {
@@ -153,7 +129,7 @@ const sql = Object.defineProperties(createSql, {
 * @returns - Mysql client.
 */
 function mysql(config) {
-	const raw_client = mysql2_promise.default.createPool(config);
+	const raw_client = mysql2.createPool(config);
 	return { async sql(query, ...values) {
 		const [result] = await raw_client.query(sql(query, ...values));
 		return result;
@@ -161,5 +137,4 @@ function mysql(config) {
 }
 
 //#endregion
-exports.mysql = mysql
-exports.sql = sql
+export { mysql, sql };
