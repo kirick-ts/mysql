@@ -154,7 +154,12 @@ function toSql(
  * @returns -
  */
 function createSql(query: TemplateStringsArray, ...values: unknown[]): Sql {
-	const result_sql_parts: string[] = [ query[0] ];
+	const query_0 = query[0];
+	if (query_0 === undefined) {
+		throw new TypeError('Argument "query" must contain at least 1 element.');
+	}
+
+	const result_sql_parts: string[] = [ query_0 ];
 	const result_values: unknown[] = [];
 
 	for (const [ index, value ] of values.entries()) {
@@ -162,7 +167,12 @@ function createSql(query: TemplateStringsArray, ...values: unknown[]): Sql {
 		result_sql_parts.push(sql_nested.sql);
 		result_values.push(...sql_nested.values);
 
-		result_sql_parts.push(query[index + 1]);
+		const query_element = query[index + 1];
+		if (query_element === undefined) {
+			throw new TypeError(`Element ${index + 1} of argument "query" is not a string.`);
+		}
+
+		result_sql_parts.push(query_element);
 	}
 
 	return new Sql(

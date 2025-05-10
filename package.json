@@ -1,6 +1,6 @@
 {
 	"name": "@kirick/mysql",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "MySQL / MariaDB client with template string support.",
 	"publishConfig": {
 		"access": "public"
