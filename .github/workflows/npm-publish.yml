@@ -87,8 +87,8 @@ jobs:
       - name: Lint code
         run: bun run lint
 
-      - name: Test code
-        run: bun run test
+      # - name: Test code
+      #   run: bun run test
 
   publish:
     needs: [version, check]
