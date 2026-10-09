@@ -1,212 +1,198 @@
-export class Sql {
-	// eslint-disable-next-line no-useless-constructor
-	constructor(
-		public readonly sql: string,
-		public readonly values: unknown[],
-	) {
-		// do nothing
-	}
-}
+import type { SQL } from './types.js';
 
-class SqlIdentifier {
-	// eslint-disable-next-line no-useless-constructor
-	constructor(
-		// eslint-disable-next-line no-shadow
-		public readonly id: string,
-	) {
-		// do nothing
-	}
-}
+export type Compiled = { text: string; values: unknown[] };
+export type Fragment = { compile(): Compiled };
+export const fragment: unique symbol = Symbol('SQL fragment');
 
-/**
- * @param value -
- * @returns -
- */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Escapes an identifier.
- * @param name - Identifier name.
- * @returns -
- */
-function id(name: string): SqlIdentifier {
-	return new SqlIdentifier(name);
-}
-
-/**
- * @param row -
- * @returns -
- */
-function insert(row: Record<string, unknown>): Sql;
-/**
- * @param rows -
- * @returns -
- */
-function insert(rows: Record<string, unknown>[]): Sql;
-// eslint-disable-next-line jsdoc/require-jsdoc
-function insert(arg0: Record<string, unknown> | Record<string, unknown>[]): Sql {
-	if (isPlainObject(arg0)) {
-		return insert([ arg0 ]);
+/** Quote a single MySQL identifier without interpreting dots. */
+export function identifier(name: string): string {
+	if (name.includes('\0')) {
+		throw new TypeError('SQL identifiers must not contain null bytes');
 	}
 
-	const rows_keys: string[] = [];
-	const rows_values: unknown[][] = [];
-	for (const row of structuredClone(arg0)) {
-		const row_values: unknown[] = [];
+	return '`' + name.replaceAll('`', '``') + '`';
+}
 
-		for (const key of rows_keys) {
-			row_values.push(
-				row[key] ?? null,
-			);
+export class SQLHelper implements SQL.Helper<Record<string, unknown>> {
+	readonly value: Record<string, unknown>[];
+	readonly columns: string[];
 
-			delete row[key];
-		}
-
-		// add new keys
-		for (const [ key, value ] of Object.entries(row)) {
-			rows_keys.push(key);
-			row_values.push(value);
-
-			for (const prev_row_values of rows_values) {
-				prev_row_values.push(null);
+	constructor(value: unknown[], columns: string[]) {
+		this.value = value as Record<string, unknown>[];
+		this.columns =
+			columns.length === 0 && value[0] !== null && typeof value[0] === 'object'
+				? Object.keys(value[0])
+				: columns;
+		for (const key of this.columns) {
+			const number = Number(key);
+			if (
+				(typeof key !== 'string' || !Number.isNaN(number))
+				&& (!Number.isSafeInteger(number) || number < 0 || number > 65536)
+			) {
+				throw new Error(`Keys must be strings or numbers: ${String(key)}`);
 			}
 		}
-
-		rows_values.push(row_values);
 	}
-
-	const ids = rows_keys.map((name) => new SqlIdentifier(name));
-
-	return createSql`(${ids}) VALUES ${rows_values}`;
 }
 
-/**
- * @param row -
- * @returns -
- */
-function set(row: Record<string, unknown>): Sql[] {
-	const sqls: Sql[] = [];
-	for (const [ key, value ] of Object.entries(row)) {
-		sqls.push(
-			createSql`${new SqlIdentifier(key)}=${value}`,
-		);
-	}
-
-	return sqls;
-}
-
-type SqlExtension = {
-	empty: Sql,
-	id: typeof id,
-	insert: typeof insert,
-	set: typeof set,
-};
-
-/**
- * Converts a value to a SQL string representation.
- * @param value -
- * @param depth -
- * @returns -
- */
-function toSql(
-	value: unknown,
-	depth: number = 0,
-): Sql {
-	if (Array.isArray(value) || value instanceof Set) {
-		const result_sql_parts: string[] = [];
-		const result_values: unknown[] = [];
-
-		for (const item of value) {
-			const sql_nested = toSql(item, depth + 1);
-			result_sql_parts.push(sql_nested.sql);
-			result_values.push(...sql_nested.values);
-		}
-
-		return new Sql(
-			(depth > 0 ? '(' : '') + result_sql_parts.join(',') + (depth > 0 ? ')' : ''),
-			result_values,
-		);
-	}
-
-	if (value instanceof Sql) {
-		return value;
-	}
-
-	if (value instanceof SqlIdentifier) {
-		return new Sql(
-			'??',
-			[ value.id ],
-		);
-	}
-
-	return new Sql(
-		'?',
-		[ value ],
+/** Find the command that determines how a data helper expands. */
+function command(text: string): string {
+	// Walk backwards like Bun: the closest command determines helper expansion.
+	const tokens = text
+		.toLowerCase()
+		.replaceAll(/"[^"]*"/gu, '')
+		.trim()
+		.split(/\s+/u);
+	return (
+		tokens.findLast((token) =>
+			['insert', 'update', 'set', 'where', 'in'].includes(token),
+		) ?? ''
 	);
 }
 
-/**
- * Creates SQL Query object from template string tag.
- * @param query -
- * @param values -
- * @returns -
- */
-function createSql(query: TemplateStringsArray, ...values: unknown[]): Sql {
-	const query_0 = query[0];
-	if (query_0 === undefined) {
-		throw new TypeError('Argument "query" must contain at least 1 element.');
+/** Normalize binary and nullish parameters without interpolating SQL text. */
+function bind(value: unknown, values: unknown[], _prefix: string): string {
+	if (value === null || value === undefined) {
+		values.push(null);
+	} else if (ArrayBuffer.isView(value)) {
+		values.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+	} else if (value instanceof ArrayBuffer) {
+		values.push(Buffer.from(value));
+	} else {
+		values.push(value);
 	}
 
-	const result_sql_parts: string[] = [ query_0 ];
-	const result_values: unknown[] = [];
+	return '?';
+}
 
-	for (const [ index, value ] of values.entries()) {
-		const sql_nested = toSql(value);
-		result_sql_parts.push(sql_nested.sql);
-		result_values.push(...sql_nested.values);
+/** Expand a helper according to its INSERT, UPDATE, or IN context. */
+function expand(helper: SQLHelper, prefix: string, values: unknown[]): string {
+	const context = command(prefix);
+	const { columns, value: rows } = helper;
+	if (!['insert', 'update', 'set', 'in'].includes(context)) {
+		throw new SyntaxError(
+			'Helpers are only allowed for INSERT, UPDATE and IN commands',
+		);
+	}
 
-		const query_element = query[index + 1];
-		if (query_element === undefined) {
-			throw new TypeError(`Element ${index + 1} of argument "query" is not a string.`);
+	if (columns.length === 0 && context !== 'in') {
+		throw new SyntaxError(
+			`Cannot ${context === 'insert' ? 'INSERT' : 'UPDATE'} with no columns`,
+		);
+	}
+
+	if (context === 'in') {
+		if (columns.length > 1 && rows.length > 0) {
+			throw new SyntaxError('Cannot use WHERE IN helper with multiple columns');
 		}
 
-		result_sql_parts.push(query_element);
+		return (
+			'('
+			+ rows
+				.map((row) => {
+					if (columns.length > 0 && row === null) {
+						throw new SyntaxError(
+							'Cannot use null as an item in WHERE IN helper with a column',
+						);
+					}
+
+					return bind(
+						columns.length > 0 ? row?.[columns[0]!] : row,
+						values,
+						'',
+					);
+				})
+				.join(', ')
+			+ ') '
+		);
 	}
 
-	return new Sql(
-		result_sql_parts.join(''),
-		result_values,
+	if (context === 'insert') {
+		if (rows.some((row) => row === null || row === undefined)) {
+			throw new SyntaxError(
+				'Cannot use null or undefined as an item in INSERT helper',
+			);
+		}
+
+		const selected = columns.filter((key) =>
+			rows.some((row) => row[key] !== undefined),
+		);
+		if (selected.length === 0) {
+			throw new SyntaxError(
+				'Insert needs to have at least one column with a defined value',
+			);
+		}
+
+		return (
+			'('
+			+ selected.map((column) => identifier(column)).join(', ')
+			+ ') VALUES'
+			+ rows
+				.map(
+					(row) =>
+						'('
+						+ selected.map((key) => bind(row[key], values, '')).join(', ')
+						+ ')',
+				)
+				.join(',')
+			+ ' '
+		);
+	}
+
+	if (rows.length > 1) {
+		throw new SyntaxError('Cannot use array of objects for UPDATE');
+	}
+
+	const row = rows[0];
+	if (row === null || row === undefined) {
+		throw new SyntaxError(
+			'Cannot use null or undefined as an item in UPDATE helper',
+		);
+	}
+
+	const selected = columns.filter((key) => row[key] !== undefined);
+	if (selected.length === 0) {
+		throw new SyntaxError('Update needs to have at least one column');
+	}
+
+	const set =
+		context === 'update'
+		&& !prefix.trimEnd().endsWith('ON DUPLICATE KEY UPDATE')
+			? ' SET '
+			: '';
+	return (
+		set
+		+ selected
+			.map((key) => `${identifier(key)} = ${bind(row[key], values, '')}`)
+			.join(', ')
+		+ ' '
 	);
 }
 
-export const sql = Object.defineProperties(
-	createSql,
-	{
-		empty: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: createSql``,
-		},
-		id: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: id,
-		},
-		insert: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: insert,
-		},
-		set: {
-			configurable: false,
-			enumerable: false,
-			writable: false,
-			value: set,
-		},
-	},
-) as typeof createSql & SqlExtension;
+/** Flatten template fragments and collect bound parameter values. */
+export function compile(
+	strings: TemplateStringsArray,
+	inputs: unknown[],
+): Compiled {
+	let text = '';
+	const values: unknown[] = [];
+	for (const [i, string_] of strings.entries()) {
+		text += string_;
+		if (i >= inputs.length) {
+			continue;
+		}
+
+		const value = inputs[i];
+		if (value !== null && typeof value === 'object' && fragment in value) {
+			const nested = (value as { [fragment]: Fragment })[fragment].compile();
+			text += nested.text;
+			values.push(...nested.values);
+		} else if (value instanceof SQLHelper) {
+			text += expand(value, text, values);
+		} else {
+			text += bind(value, values, text) + ' ';
+		}
+	}
+
+	return { text, values };
+}
