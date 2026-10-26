@@ -50,7 +50,7 @@ Other omissions suggested during API review are proposals, not confirmed require
 
 ## Implementation and validation requirements
 
-- Reuse Bun's published SQL declarations instead of independently recreating public query, helper, and options interfaces. The reference is `bun-types@1.4.2` and Bun runtime 1.4.2.
+- Reuse Bun's published SQL declarations instead of independently recreating public query, helper, and options interfaces. The reference is `bun-types@1.4.4` and Bun runtime 1.4.4; CI and the compatibility runner must use this version.
 - Temporary MySQL and MariaDB Docker containers are authorized for testing. Package scripts may create them. Isolate their ports and storage, and clean up only containers created by the test run.
 - Lint the codebase with `bun lint`, using the executable supplied by `@kirick/lint`. Do not add a package script that shadows it or replace it with individual lint tools.
 - Keep TypeScript configurations at the project root, named `tsconfig.json` or `tsconfig.*.json`, so `@kirick/lint` discovers and checks all of them. Do not add separate scripts or commands to invoke `tsc` for individual configurations.
@@ -60,6 +60,14 @@ Other omissions suggested during API review are proposals, not confirmed require
 - `check` is the one-shot command to lint, test, and build dist. Include `bun run build` in `test` only when tests exercise built output; otherwise it belongs in `check`.
 - The current tests import the built public package exports, so `test` builds first and runs the shared Docker matrix. `bun lint` covers source and ESM/CommonJS consumer types through the root tsconfigs. `check` runs `bun lint && bun run test`.
 - Preserve `.npmignore` as the package publication filter. Extend it for new development files instead of deleting it or replacing it with a `package.json` files allowlist.
-- Keep mysql2 pinned while the parameter adapter uses its packet-writing boundary; validate upgrades with the full matrix.
+- Keep mysql2 pinned while the parameter adapter uses its packet-writing boundary and result metadata reads its prepared parameter descriptions; validate upgrades with the full matrix.
 - Match runtime behavior on the same database server. MySQL and MariaDB may legitimately produce different wire types; any server-specific expectations must be identical for both providers.
-- Document discrepancies found in the Bun reference rather than changing expectations for our provider. See README.md for the verified contract and observed Bun 1.4.2 limitations.
+- Document discrepancies found in the Bun reference rather than changing expectations for our provider. See README.md for the verified contract and version-specific observations.
+
+## Bun 1.4.4 compatibility observations
+
+- Reuse the new `SQL.ResultMetadata`, `SQL.ResultColumn`, and `SQL.ResultStatement` declarations, including metadata on explicitly typed query results.
+- Shared tests must cover `columns`/`statement`, write counts, large generated IDs, prepared-statement metadata reuse, and changed column descriptions.
+- Match the new empty-list `(NULL)` behavior, qualified dotted identifiers, lazy result-mode selection, TIME fractional seconds, raw temporal/BIT buffers, and JSON text parameters on both servers.
+- MySQL rejects `.readable()` and `.writable()` synchronously; adding the upstream query methods does not enable PostgreSQL streaming.
+- Bun's legacy metadata properties are still own enumerable properties in 1.4.4; only `columns` and `statement` are prototype accessors. Follow observed runtime behavior where declaration comments differ.

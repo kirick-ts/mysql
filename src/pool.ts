@@ -1,11 +1,15 @@
 import type { SQL as BunSQL } from 'bun';
 import mysql2, { type FieldPacket } from 'mysql2';
-import type { Pool, PoolConnection } from 'mysql2/promise';
+import type {
+	Pool,
+	PoolConnection,
+	PreparedStatementInfo,
+} from 'mysql2/promise';
 import { clientError, databaseError } from './errors.js';
 import { poolOptions } from './options.js';
 import { bindParameters } from './parameters.js';
 import type { Query } from './query.js';
-import { result, typeCast } from './results.js';
+import { describeStatement, result, typeCast } from './results.js';
 
 export class ClientPool {
 	#initialized = new WeakSet<object>();
@@ -59,7 +63,7 @@ export class ClientPool {
 	}
 
 	/** Execute a query once and release its exclusive connection. */
-	async run<T>(query: Query<T>): Promise<T> {
+	async run<T>(query: Query<T>): Promise<T & BunSQL.ResultMetadata> {
 		if (this.#isClosed) {
 			throw clientError('CONNECTION_CLOSED', 'Connection closed');
 		}
@@ -67,6 +71,7 @@ export class ClientPool {
 		const task = (async () => {
 			let connection: PoolConnection | undefined;
 			let restoreWriter: (() => void) | undefined;
+			let prepared: PreparedStatementInfo | undefined;
 			try {
 				const compiled = query.compile();
 				if (query.isSimple && compiled.values.length > 0) {
@@ -86,6 +91,7 @@ export class ClientPool {
 				};
 				if (!query.isSimple) {
 					restoreWriter = bindParameters(connection, request, compiled.values);
+					prepared = await connection.prepare(request);
 				}
 
 				const [rows, fields] = query.isSimple
@@ -101,11 +107,24 @@ export class ClientPool {
 					&& fields.some((field) => !field || Array.isArray(field))
 				) {
 					return (rows as unknown[]).map((r, i) =>
-						result(r, fields[i] as unknown as FieldPacket[], resultOptions),
-					) as T;
+						result(
+							r,
+							fields[i] as unknown as FieldPacket[],
+							resultOptions,
+							describeStatement(
+								compiled.text,
+								fields[i] as unknown as FieldPacket[],
+							),
+						),
+					) as T & BunSQL.ResultMetadata;
 				}
 
-				return result(rows, fields, resultOptions) as T;
+				return result(
+					rows,
+					fields,
+					resultOptions,
+					describeStatement(compiled.text, fields, prepared),
+				) as unknown as T & BunSQL.ResultMetadata;
 			} catch (error) {
 				throw databaseError(error);
 			} finally {

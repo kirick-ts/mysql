@@ -14,6 +14,45 @@ export type QueryIsBun = Assert<
 export type HelperIsBun = Assert<
 	Equal<PackageSQL.Helper<{ id: number }>, BunSQL.Helper<{ id: number }>>
 >;
+export type MetadataIsBun = Assert<
+	Equal<PackageSQL.ResultMetadata, BunSQL.ResultMetadata>
+>;
+export type ColumnIsBun = Assert<
+	Equal<PackageSQL.ResultColumn, BunSQL.ResultColumn>
+>;
+export type StatementIsBun = Assert<
+	Equal<PackageSQL.ResultStatement, BunSQL.ResultStatement>
+>;
+export type AwaitedQueryIncludesMetadata = Assert<
+	Equal<
+		Awaited<PackageSQL.Query<{ id: number }[]>>,
+		{ id: number }[] & BunSQL.ResultMetadata
+	>
+>;
+
+/** Metadata remains typed when callers supply their own row type. */
+export async function typedMetadata(
+	sql: PackageSQL | BunSQL,
+): Promise<BunSQL.ResultMetadata> {
+	const rows = await sql<{ id: number }[]>`SELECT id FROM users`;
+	const {
+		count,
+		columns,
+		statement,
+	}: {
+		count: number;
+		columns: PackageSQL.ResultColumn[] | null;
+		statement: PackageSQL.ResultStatement | null;
+	} = rows;
+	return {
+		count,
+		columns,
+		statement,
+		command: rows.command,
+		affectedRows: rows.affectedRows,
+		lastInsertRowid: rows.lastInsertRowid,
+	};
+}
 
 // The same application body must compile with either client, without assertions.
 /** Compile the same application code against both client types. */

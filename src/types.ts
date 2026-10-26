@@ -22,6 +22,9 @@ export type SQL = BunSQL & Record<Unsupported, never>;
 export declare namespace SQL {
 	export type Options = BunSQL.Options;
 	export type Query<T> = BunSQL.Query<T>;
+	export type ResultMetadata = BunSQL.ResultMetadata;
+	export type ResultColumn = BunSQL.ResultColumn;
+	export type ResultStatement = BunSQL.ResultStatement;
 	export type Helper<T> = BunSQL.Helper<T>;
 	export type MySQLError = BunSQL.MySQLError;
 	export type SQLError = BunSQL.SQLError;

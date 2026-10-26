@@ -1,7 +1,65 @@
+import type { SQL } from './types.js';
 import type { FieldPacket, ResultSetHeader, TypeCast } from 'mysql2';
 import mysql2 from 'mysql2';
+import type { PreparedStatementInfo } from 'mysql2/promise';
 
 const { Types } = mysql2;
+
+const statements = new WeakMap<object, SQL.ResultStatement>();
+
+/** Expose server descriptions, sharing metadata for each cached statement. */
+export function describeStatement(
+	text: string,
+	fields: FieldPacket[] | undefined,
+	prepared?: PreparedStatementInfo,
+): SQL.ResultStatement {
+	// mysql2's Promise wrapper omits these protocol fields from its declarations.
+	// This read-only boundary is covered by the pinned driver's compatibility tests.
+	const handle = (
+		prepared as unknown as
+			| {
+					statement: { parameters: FieldPacket[] };
+			  }
+			| undefined
+	)?.statement;
+	const columns = (fields ?? []).map((field) => {
+		return {
+			name: field.name,
+			type: field.columnType!,
+			table: field.table,
+			length: field.columnLength,
+			flags: field.flags as number,
+		};
+	});
+	const cached = handle && statements.get(handle);
+	if (
+		cached
+		&& cached.columns.length === columns.length
+		&& columns.every((column, i) => {
+			const previous = cached.columns[i]!;
+			return (
+				column.name === previous.name
+				&& column.type === previous.type
+				&& column.table === previous.table
+				&& column.length === previous.length
+				&& column.flags === previous.flags
+			);
+		})
+	) {
+		return cached;
+	}
+
+	const statement: SQL.ResultStatement = {
+		string: text,
+		types: handle?.parameters.map((field) => field.columnType!) ?? [],
+		columns,
+	};
+	if (handle) {
+		statements.set(handle, statement);
+	}
+
+	return statement;
+}
 
 export type ResultMode = 'objects' | 'values' | 'raw';
 
@@ -11,11 +69,24 @@ export interface ResultOptions {
 	isSimple: boolean;
 }
 
-class SQLResultArray extends Array<unknown> {
+class SQLResultArray extends Array<unknown> implements SQL.ResultMetadata {
 	count = 0;
 	command = null;
-	lastInsertRowid: number | string = 0;
+	lastInsertRowid: SQL.ResultMetadata['lastInsertRowid'] = 0;
 	affectedRows = 0;
+	#statement: SQL.ResultStatement | null = null;
+
+	get statement(): SQL.ResultStatement | null {
+		return this.#statement;
+	}
+
+	set statement(value: SQL.ResultStatement | null) {
+		this.#statement = value;
+	}
+
+	get columns(): SQL.ResultColumn[] | null {
+		return this.#statement?.columns ?? null;
+	}
 
 	static override get [Symbol.species](): ArrayConstructor {
 		return Array;
@@ -33,6 +104,11 @@ export function typeCast(mode: ResultMode, isSimple: boolean): TypeCast {
 			mode === 'raw'
 			&& (isSimple
 				|| [
+					'DATE',
+					'NEWDATE',
+					'DATETIME',
+					'TIMESTAMP',
+					'TIME',
 					'DECIMAL',
 					'NEWDECIMAL',
 					'JSON',
@@ -120,7 +196,8 @@ function decode(
 		// oxlint-disable-next-line no-bitwise -- MySQL's unsigned-column flag is a protocol bitmask.
 		typeof field.flags === 'number' && (field.flags & 32) !== 0;
 	if (
-		type === Types.BIT
+		mode !== 'raw'
+		&& type === Types.BIT
 		&& field.columnLength === 1
 		&& Buffer.isBuffer(value)
 	) {
@@ -146,10 +223,6 @@ function decode(
 		return shouldUseBigInt ? integer : String(value);
 	}
 
-	if (type === Types.TIME && !isSimple && typeof value === 'string') {
-		return value.split('.', 1)[0];
-	}
-
 	return value;
 }
 
@@ -158,11 +231,17 @@ export function result(
 	rows: unknown,
 	fields: FieldPacket[] | undefined,
 	options: ResultOptions,
+	statement: SQL.ResultStatement,
 ): SQLResultArray {
 	const output = new SQLResultArray();
+	output.statement = statement;
 	if (!Array.isArray(rows)) {
 		const header = rows as ResultSetHeader;
-		output.lastInsertRowid = header.insertId;
+		output.lastInsertRowid =
+			options.shouldUseBigInt && typeof header.insertId === 'string'
+				? BigInt(header.insertId)
+				: header.insertId;
+		output.count = header.affectedRows;
 		output.affectedRows = header.affectedRows;
 		return output;
 	}

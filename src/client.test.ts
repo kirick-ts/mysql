@@ -61,6 +61,15 @@ test('connect returns the same callable client', async () => {
 	expect(await sql.connect()).toBe(sql);
 });
 
+test('PostgreSQL streaming methods reject synchronously on MySQL', async () => {
+	const query = sql`SELECT 1 AS n`;
+	const message =
+		'readable() and writable() are not supported by this adapter (PostgreSQL only)';
+	expect(() => query.readable()).toThrow(message);
+	expect(() => query.writable()).toThrow(message);
+	expect(await query).toEqual(Object.assign([{ n: 1 }], metadata(1)));
+});
+
 test('queries are lazy and execute only once', async () => {
 	const query = sql`INSERT INTO compat_client ${sql({ id: 1, label: 'lazy' })}`;
 	expect(query).toBeInstanceOf(Promise);
@@ -69,7 +78,7 @@ test('queries are lazy and execute only once', async () => {
 	);
 	const first = await query;
 	expect(await query).toBe(first);
-	expect(first).toEqual(Object.assign([], metadata(0, 1, 1)));
+	expect(first).toEqual(Object.assign([], metadata(1, 1, 1)));
 });
 
 /* oxlint-disable promise/prefer-await-to-then -- This test verifies the Promise chaining API. */
@@ -128,9 +137,9 @@ test('write metadata counts changed rows rather than matched rows', async () => 
 	).toEqual(Object.assign([], metadata(0, 0, 0)));
 	expect(
 		await sql`UPDATE compat_client SET label=${'changed'} WHERE id=2`,
-	).toEqual(Object.assign([], metadata(0, 0, 1)));
+	).toEqual(Object.assign([], metadata(1, 0, 1)));
 	expect(await sql`DELETE FROM compat_client WHERE id=2`).toEqual(
-		Object.assign([], metadata(0, 0, 1)),
+		Object.assign([], metadata(1, 0, 1)),
 	);
 });
 

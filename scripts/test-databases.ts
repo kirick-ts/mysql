@@ -109,9 +109,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 
 try {
 	const { bun } = process.versions;
-	if (bun !== '1.4.2') {
+	if (bun !== '1.4.4') {
 		throw new Error(
-			`Compatibility reference is Bun 1.4.2; found ${bun ?? 'no Bun runtime'}`,
+			`Compatibility reference is Bun 1.4.4; found ${bun ?? 'no Bun runtime'}`,
 		);
 	}
 

@@ -6,6 +6,9 @@ type SQL$2 = SQL$1 & Record<Unsupported, never>;
 declare namespace SQL$2 {
   type Options = SQL$1.Options;
   type Query<T> = SQL$1.Query<T>;
+  type ResultMetadata = SQL$1.ResultMetadata;
+  type ResultColumn = SQL$1.ResultColumn;
+  type ResultStatement = SQL$1.ResultStatement;
   type Helper<T> = SQL$1.Helper<T>;
   type MySQLError = SQL$1.MySQLError;
   type SQLError = SQL$1.SQLError;
@@ -22,6 +25,9 @@ export declare namespace SQL {
   type Options = SQL$1.Options;
   type PostgresOrMySQLOptions = SQL$1.PostgresOrMySQLOptions;
   type Query<T> = SQL$1.Query<T>;
+  type ResultMetadata = SQL$1.ResultMetadata;
+  type ResultColumn = SQL$1.ResultColumn;
+  type ResultStatement = SQL$1.ResultStatement;
   type Helper<T> = SQL$1.Helper<T>;
   type MySQLError = SQL$1.MySQLError;
   type SQLError = SQL$1.SQLError;

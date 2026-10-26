@@ -107,19 +107,19 @@ function encode(value: unknown): Parameter {
 	}
 
 	if (Buffer.isBuffer(value)) {
-		return { type: 253, unsigned: 0, bytes: lengthEncoded(value) };
+		return { type: 252, unsigned: 0, bytes: lengthEncoded(value) };
 	}
 
 	if (typeof value === 'object') {
 		return {
-			type: 245,
+			type: 254,
 			unsigned: 0,
 			bytes: lengthEncoded(Buffer.from(JSON.stringify(value))),
 		};
 	}
 
 	return {
-		type: 253,
+		type: 254,
 		unsigned: 0,
 		bytes: lengthEncoded(Buffer.from(String(value))),
 	};

@@ -3,7 +3,10 @@ import type { ResultMode } from './results.js';
 import { type Compiled, fragment } from './sql.js';
 import type { SQL } from './types.js';
 
-export class Query<T> extends Promise<T> implements SQL.Query<T> {
+export class Query<T>
+	extends Promise<T & SQL.ResultMetadata>
+	implements SQL.Query<T>
+{
 	static override get [Symbol.species](): PromiseConstructor {
 		return Promise;
 	}
@@ -16,18 +19,22 @@ export class Query<T> extends Promise<T> implements SQL.Query<T> {
 	onCancel?: () => void;
 	#started = false;
 	#settled = false;
-	#resolve!: (value: T | PromiseLike<T>) => void;
+	#resolve!: (
+		value: (T & SQL.ResultMetadata) | PromiseLike<T & SQL.ResultMetadata>,
+	) => void;
 	#reject!: (error: unknown) => void;
-	#run: (query: Query<T>) => Promise<T>;
+	#run: (query: Query<T>) => Promise<T & SQL.ResultMetadata>;
 	#compiled?: Compiled;
 	#identifier: boolean;
 
 	constructor(
 		compile: () => Compiled,
-		run: (query: Query<T>) => Promise<T>,
+		run: (query: Query<T>) => Promise<T & SQL.ResultMetadata>,
 		isIdentifier = false,
 	) {
-		let resolve!: (value: T | PromiseLike<T>) => void;
+		let resolve!: (
+			value: (T & SQL.ResultMetadata) | PromiseLike<T & SQL.ResultMetadata>,
+		) => void;
 		let reject!: (error: unknown) => void;
 		super((yes, no) => {
 			resolve = yes;
@@ -99,24 +106,13 @@ export class Query<T> extends Promise<T> implements SQL.Query<T> {
 		return this;
 	}
 
-	#prepare(): void {
-		try {
-			this.compile();
-		} catch (error) {
-			this.#settled = true;
-			this.#reject(error);
-		}
-	}
-
 	raw(): this {
 		this.mode = 'raw';
-		this.#prepare();
 		return this;
 	}
 
 	values(): this {
 		this.mode = 'values';
-		this.#prepare();
 		return this;
 	}
 
@@ -125,9 +121,23 @@ export class Query<T> extends Promise<T> implements SQL.Query<T> {
 		return this;
 	}
 
+	// oxlint-disable-next-line class-methods-use-this -- Bun exposes this instance method even on adapters that reject streaming.
+	readable(): ReturnType<SQL.Query<T>['readable']> {
+		throw new Error(
+			'readable() and writable() are not supported by this adapter (PostgreSQL only)',
+		);
+	}
+
+	// oxlint-disable-next-line class-methods-use-this -- Bun exposes this instance method even on adapters that reject streaming.
+	writable(): ReturnType<SQL.Query<T>['writable']> {
+		throw new Error(
+			'readable() and writable() are not supported by this adapter (PostgreSQL only)',
+		);
+	}
+
 	// oxlint-disable-next-line unicorn/no-thenable -- Bun SQL queries are lazy Promise subclasses.
-	override then<A = T, B = never>(
-		yes?: ((value: T) => A | PromiseLike<A>) | null,
+	override then<A = T & SQL.ResultMetadata, B = never>(
+		yes?: ((value: T & SQL.ResultMetadata) => A | PromiseLike<A>) | null,
 		no?: ((reason: unknown) => B | PromiseLike<B>) | null,
 	): Promise<A | B> {
 		this.execute();
@@ -137,12 +147,14 @@ export class Query<T> extends Promise<T> implements SQL.Query<T> {
 
 	override catch<A = never>(
 		no?: ((reason: unknown) => A | PromiseLike<A>) | null,
-	): Promise<T | A> {
+	): Promise<(T & SQL.ResultMetadata) | A> {
 		this.execute();
 		return super.catch(no);
 	}
 
-	override finally(callback?: (() => void) | null): Promise<T> {
+	override finally(
+		callback?: (() => void) | null,
+	): Promise<T & SQL.ResultMetadata> {
 		this.execute();
 		return super.finally(callback);
 	}

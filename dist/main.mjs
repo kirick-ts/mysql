@@ -219,17 +219,17 @@ function encode(value) {
 		};
 	}
 	if (Buffer.isBuffer(value)) return {
-		type: 253,
+		type: 252,
 		unsigned: 0,
 		bytes: lengthEncoded(value)
 	};
 	if (typeof value === "object") return {
-		type: 245,
+		type: 254,
 		unsigned: 0,
 		bytes: lengthEncoded(Buffer.from(JSON.stringify(value)))
 	};
 	return {
-		type: 253,
+		type: 254,
 		unsigned: 0,
 		bytes: lengthEncoded(Buffer.from(String(value)))
 	};
@@ -281,11 +281,47 @@ function bindParameters(connection, request, values) {
 //#endregion
 //#region src/results.ts
 const { Types } = mysql2;
+const statements = /* @__PURE__ */ new WeakMap();
+/** Expose server descriptions, sharing metadata for each cached statement. */
+function describeStatement(text, fields, prepared) {
+	const handle = prepared?.statement;
+	const columns = (fields ?? []).map((field) => {
+		return {
+			name: field.name,
+			type: field.columnType,
+			table: field.table,
+			length: field.columnLength,
+			flags: field.flags
+		};
+	});
+	const cached = handle && statements.get(handle);
+	if (cached && cached.columns.length === columns.length && columns.every((column, i) => {
+		const previous = cached.columns[i];
+		return column.name === previous.name && column.type === previous.type && column.table === previous.table && column.length === previous.length && column.flags === previous.flags;
+	})) return cached;
+	const statement = {
+		string: text,
+		types: handle?.parameters.map((field) => field.columnType) ?? [],
+		columns
+	};
+	if (handle) statements.set(handle, statement);
+	return statement;
+}
 var SQLResultArray = class extends Array {
 	count = 0;
 	command = null;
 	lastInsertRowid = 0;
 	affectedRows = 0;
+	#statement = null;
+	get statement() {
+		return this.#statement;
+	}
+	set statement(value) {
+		this.#statement = value;
+	}
+	get columns() {
+		return this.#statement?.columns ?? null;
+	}
 	static get [Symbol.species]() {
 		return Array;
 	}
@@ -295,6 +331,11 @@ function typeCast(mode, isSimple) {
 	return (field, next) => {
 		if (field.type === "GEOMETRY") return field.buffer();
 		if (mode === "raw" && (isSimple || [
+			"DATE",
+			"NEWDATE",
+			"DATETIME",
+			"TIMESTAMP",
+			"TIME",
 			"DECIMAL",
 			"NEWDECIMAL",
 			"JSON",
@@ -348,7 +389,7 @@ function decode(value, field, { mode, shouldUseBigInt, isSimple }) {
 	if (value === null) return null;
 	const type = field.columnType;
 	const isUnsigned = typeof field.flags === "number" && (field.flags & 32) !== 0;
-	if (type === Types.BIT && field.columnLength === 1 && Buffer.isBuffer(value)) return value[0] !== 0;
+	if (mode !== "raw" && type === Types.BIT && field.columnLength === 1 && Buffer.isBuffer(value)) return value[0] !== 0;
 	if (mode === "raw" && !isSimple) {
 		const bytes = rawNumeric(value, type, isUnsigned);
 		if (bytes !== void 0) return bytes;
@@ -358,15 +399,16 @@ function decode(value, field, { mode, shouldUseBigInt, isSimple }) {
 		if (integer >= (isUnsigned ? 0n : -2147483648n) && integer <= (isUnsigned ? 4294967295n : 2147483647n)) return Number(integer);
 		return shouldUseBigInt ? integer : String(value);
 	}
-	if (type === Types.TIME && !isSimple && typeof value === "string") return value.split(".", 1)[0];
 	return value;
 }
 /** Construct the public row array and its write-result metadata. */
-function result(rows, fields, options) {
+function result(rows, fields, options, statement) {
 	const output = new SQLResultArray();
+	output.statement = statement;
 	if (!Array.isArray(rows)) {
 		const header = rows;
-		output.lastInsertRowid = header.insertId;
+		output.lastInsertRowid = options.shouldUseBigInt && typeof header.insertId === "string" ? BigInt(header.insertId) : header.insertId;
+		output.count = header.affectedRows;
 		output.affectedRows = header.affectedRows;
 		return output;
 	}
@@ -428,6 +470,7 @@ var ClientPool = class {
 		const task = (async () => {
 			let connection;
 			let restoreWriter;
+			let prepared;
 			try {
 				const compiled = query.compile();
 				if (query.isSimple && compiled.values.length > 0) throw new Error("Cannot use parameters with simple query");
@@ -439,15 +482,18 @@ var ClientPool = class {
 					rowsAsArray: true,
 					typeCast: typeCast(query.mode, query.isSimple)
 				};
-				if (!query.isSimple) restoreWriter = bindParameters(connection, request, compiled.values);
+				if (!query.isSimple) {
+					restoreWriter = bindParameters(connection, request, compiled.values);
+					prepared = await connection.prepare(request);
+				}
 				const [rows, fields] = query.isSimple ? await connection.query(request) : await connection.execute(request, compiled.values);
 				const resultOptions = {
 					mode: query.mode,
 					shouldUseBigInt: this.options.bigint === true,
 					isSimple: query.isSimple
 				};
-				if (Array.isArray(fields) && fields.some((field) => !field || Array.isArray(field))) return rows.map((r, i) => result(r, fields[i], resultOptions));
-				return result(rows, fields, resultOptions);
+				if (Array.isArray(fields) && fields.some((field) => !field || Array.isArray(field))) return rows.map((r, i) => result(r, fields[i], resultOptions, describeStatement(compiled.text, fields[i])));
+				return result(rows, fields, resultOptions, describeStatement(compiled.text, fields, prepared));
 			} catch (error) {
 				throw databaseError(error);
 			} finally {
@@ -497,10 +543,10 @@ var ClientPool = class {
 //#endregion
 //#region src/sql.ts
 const fragment = Symbol("SQL fragment");
-/** Quote a single MySQL identifier without interpreting dots. */
+/** Quote each part of a qualified MySQL identifier. */
 function identifier(name) {
 	if (name.includes("\0")) throw new TypeError("SQL identifiers must not contain null bytes");
-	return "`" + name.replaceAll("`", "``") + "`";
+	return "`" + name.replaceAll("`", "``").replaceAll(".", "`.`") + "`";
 }
 var SQLHelper = class {
 	value;
@@ -542,9 +588,10 @@ function expand(helper, prefix, values) {
 		"set",
 		"in"
 	].includes(context)) throw new SyntaxError("Helpers are only allowed for INSERT, UPDATE and IN commands");
-	if (columns.length === 0 && context !== "in") throw new SyntaxError(`Cannot ${context === "insert" ? "INSERT" : "UPDATE"} with no columns`);
+	if (columns.length === 0 && context === "insert") throw new SyntaxError("Cannot INSERT with no columns");
 	if (context === "in") {
-		if (columns.length > 1 && rows.length > 0) throw new SyntaxError("Cannot use WHERE IN helper with multiple columns");
+		if (columns.length > 1) throw new SyntaxError("Cannot use WHERE IN helper with multiple columns");
+		if (rows.length === 0) return "(NULL) ";
 		return "(" + rows.map((row) => {
 			if (columns.length > 0 && row === null) throw new SyntaxError("Cannot use null as an item in WHERE IN helper with a column");
 			return bind(columns.length > 0 ? row?.[columns[0]] : row, values, "");
@@ -651,27 +698,23 @@ var Query = class extends Promise {
 		}
 		return this;
 	}
-	#prepare() {
-		try {
-			this.compile();
-		} catch (error) {
-			this.#settled = true;
-			this.#reject(error);
-		}
-	}
 	raw() {
 		this.mode = "raw";
-		this.#prepare();
 		return this;
 	}
 	values() {
 		this.mode = "values";
-		this.#prepare();
 		return this;
 	}
 	simple() {
 		this.isSimple = true;
 		return this;
+	}
+	readable() {
+		throw new Error("readable() and writable() are not supported by this adapter (PostgreSQL only)");
+	}
+	writable() {
+		throw new Error("readable() and writable() are not supported by this adapter (PostgreSQL only)");
 	}
 	then(yes, no) {
 		this.execute();
@@ -727,6 +770,7 @@ function createSQL(input, overrides = {}) {
 	}
 	Object.assign(sql, {
 		options,
+		json: (value) => JSON.stringify(value),
 		unsafe,
 		close,
 		end: close,

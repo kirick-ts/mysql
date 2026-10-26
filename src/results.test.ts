@@ -74,7 +74,7 @@ test('default results decode numbers, decimals, dates, buffers and bits', async 
 					day: new Date('2026-01-02T00:00:00.000Z'),
 					stamp: date,
 					instant: date,
-					duration: '123:04:05',
+					duration: '123:04:05.678901',
 					flag: true,
 					bits: Buffer.from([1, 1]),
 					year: 2026,
@@ -86,7 +86,7 @@ test('default results decode numbers, decimals, dates, buffers and bits', async 
 	);
 });
 
-test('raw returns exact numeric wire bytes and preserves special decoded types', async () => {
+test('raw returns exact numeric, temporal and bit wire bytes', async () => {
 	const query = sql`SELECT id, tiny, small, medium, uint, big, ubig, amount, f, d, label, bytes, day, stamp, duration, flag, bits, year, nullable FROM compat_values`;
 	expect(query.raw()).toBe(query);
 	expect(await query).toEqual(
@@ -105,10 +105,10 @@ test('raw returns exact numeric wire bytes and preserves special decoded types',
 					Buffer.from('0000000000000240', 'hex'),
 					Buffer.from('hello 🐈'),
 					Buffer.from([0, 1, 255]),
-					new Date('2026-01-02T00:00:00.000Z'),
-					date,
-					'123:04:05',
-					true,
+					Buffer.from('ea070102', 'hex'),
+					Buffer.from('ea07010203040570580a00', 'hex'),
+					Buffer.from('0005000000030405f55b0a00', 'hex'),
+					Buffer.from([1]),
 					Buffer.from([1, 1]),
 					Buffer.from('ea07', 'hex'),
 					null,
@@ -179,18 +179,9 @@ test('BIGINT decoding uses signed and unsigned 32-bit boundaries', async () => {
 
 test('objects and arrays interpolate as JSON text', async () => {
 	const query = sql`SELECT ${{ a: 1 }} AS object, ${[1, 2]} AS array`;
-	// MariaDB does not accept the MySQL JSON parameter type sent by Bun.
-	if (isMariaDB) {
-		await expect(Promise.resolve(query)).rejects.toMatchObject({
-			code: 'ERR_MYSQL_SERVER_ERROR',
-			errno: 1210,
-			sqlState: 'HY000',
-		});
-	} else {
-		expect(await query).toEqual(
-			Object.assign([{ object: '{"a":1}', array: '[1,2]' }], metadata(1)),
-		);
-	}
+	expect(await query).toEqual(
+		Object.assign([{ object: '{"a":1}', array: '[1,2]' }], metadata(1)),
+	);
 });
 
 test('typed array and buffer input preserves raw bytes', async () => {
@@ -201,6 +192,34 @@ test('typed array and buffer input preserves raw bytes', async () => {
 			[[Buffer.from([0, 1, 255]), Buffer.from([128, 42])]],
 			metadata(1),
 		),
+	);
+});
+
+test('binary parameter results follow the server column types in default and values modes', async () => {
+	const a = new Uint8Array([0, 1, 255]);
+	const b = Buffer.from([128, 42]);
+	// MySQL infers VARCHAR for these bare parameters; MariaDB returns binary columns.
+	const expectedA = isMariaDB ? Buffer.from([0, 1, 255]) : '\u{0}\u{1}\u{FFFD}';
+	const expectedB = isMariaDB ? b : '\u{FFFD}*';
+	expect(await sql`SELECT ${a} AS a, ${b} AS b`).toEqual(
+		Object.assign([{ a: expectedA, b: expectedB }], metadata(1)),
+	);
+	expect(await sql`SELECT ${a} AS a, ${b} AS b`.values()).toEqual(
+		Object.assign([[expectedA, expectedB]], metadata(1)),
+	);
+	expect(
+		await sql`SELECT CAST(${a} AS BINARY) AS a, CAST(${b} AS BINARY) AS b`,
+	).toEqual(Object.assign([{ a: Buffer.from([0, 1, 255]), b }], metadata(1)));
+});
+
+test('json helper binds primitive JSON values on both servers', async () => {
+	expect(sql.json('dark')).toBe('"dark"');
+	expect(sql.json(null)).toBe('null');
+	expect(sql.json(undefined)).toBeUndefined();
+	expect(
+		await sql`SELECT ${sql.json('dark')} AS text, ${sql.json(42)} AS n, ${sql.json(null)} AS nil`,
+	).toEqual(
+		Object.assign([{ text: '"dark"', n: '42', nil: 'null' }], metadata(1)),
 	);
 });
 
@@ -265,12 +284,12 @@ test('parameters span null bitmap bytes and variable-length payload boundaries',
 	);
 });
 
-test('values freezes helper bindings when the result mode is selected', async () => {
+test('result modes leave helper bindings lazy until execution', async () => {
 	const ids = [1];
 	const query =
 		sql`SELECT id FROM compat_values WHERE id IN ${sql(ids)}`.values();
 	ids[0] = 9;
-	expect(await query).toEqual(Object.assign([[1]], metadata(1)));
+	expect(await query).toEqual(Object.assign([], metadata(0)));
 });
 
 test('arbitrary output column names remain unchanged', async () => {

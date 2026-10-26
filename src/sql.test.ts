@@ -28,7 +28,7 @@ test('template interpolation binds strings, numbers, booleans and nullish values
 test('insert a single object', async () => {
 	const result =
 		await sql`INSERT INTO compat_users ${sql({ name: 'Alice', age: 21 })}`;
-	expect(result).toEqual(Object.assign([], metadata(0, 1, 1)));
+	expect(result).toEqual(Object.assign([], metadata(1, 1, 1)));
 	expect(await sql`SELECT * FROM compat_users`).toEqual(
 		Object.assign(
 			[{ id: 1, name: 'Alice', email: null, age: 21 }],
@@ -44,7 +44,7 @@ test('bulk insert and picking columns', async () => {
 	];
 	expect(
 		await sql`INSERT INTO compat_users ${sql(users, 'name', 'email')}`,
-	).toEqual(Object.assign([], metadata(0, 1, 2)));
+	).toEqual(Object.assign([], metadata(2, 1, 2)));
 	expect(
 		await sql`SELECT name, email, age FROM compat_users ORDER BY id`,
 	).toEqual(
@@ -153,6 +153,13 @@ test('dynamic identifiers escape backticks; qualification uses separate identifi
 	).toEqual(Object.assign([{ 'a`b': 'A' }], metadata(1)));
 });
 
+test('dotted identifiers qualify each part and escape backticks', async () => {
+	await sql`INSERT INTO compat_users ${sql({ name: 'A' })}`;
+	expect(
+		await sql`SELECT ${sql('u`.name')} AS name FROM compat_users AS ${sql('u`')}`,
+	).toEqual(Object.assign([{ name: 'A' }], metadata(1)));
+});
+
 test('helpers can be reused without mutating input objects', async () => {
 	const data = Object.freeze({ name: 'Reusable', age: 22 });
 	const helper = sql(data);
@@ -184,6 +191,9 @@ test('empty insert helpers fail', async () => {
 
 test('empty updates and unsupported helper contexts fail', async () => {
 	await expect(
+		Promise.resolve(sql`UPDATE compat_users SET ${sql({})}`),
+	).rejects.toThrow('Update needs to have at least one column');
+	await expect(
 		Promise.resolve(sql`UPDATE compat_users SET ${sql({ age: undefined })}`),
 	).rejects.toThrow('Update needs to have at least one column');
 	await expect(
@@ -198,15 +208,18 @@ test('empty updates and unsupported helper contexts fail', async () => {
 	).rejects.toThrow('Cannot use array of objects for UPDATE');
 });
 
-test('IN rejects multiple projection columns and preserves empty-list failure', async () => {
+test('IN rejects multiple projection columns and accepts empty lists', async () => {
 	await expect(
 		Promise.resolve(
 			sql`SELECT 1 WHERE 1 IN ${sql([{ id: 1, age: 2 }], 'id', 'age')}`,
 		),
 	).rejects.toThrow('Cannot use WHERE IN helper with multiple columns');
-	await expect(
-		Promise.resolve(sql`SELECT 1 WHERE 1 IN ${sql([])}`),
-	).rejects.toMatchObject({ code: 'ERR_MYSQL_SYNTAX_ERROR', errno: 1064 });
+	expect(await sql`SELECT 1 WHERE 1 IN ${sql([])}`).toEqual(
+		Object.assign([], metadata(0)),
+	);
+	expect(await sql`SELECT 1 WHERE 1 NOT IN ${sql([])}`).toEqual(
+		Object.assign([], metadata(0)),
+	);
 });
 
 test('integer parameters retain signed arithmetic and LIMIT comma syntax', async () => {

@@ -12,9 +12,13 @@ on:
       - beta
       - 'dev-*'
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
-  BUN_VERSION: 1.4.2
-  NODE_VERSION: 24.14.0
+  BUN_VERSION: 1.4.4
+  NODE_VERSION: 24.22.1
 
 jobs:
   version:
@@ -56,17 +60,7 @@ jobs:
 
           if [[ $BRANCH == "main" && $NPM_TAG != "latest" ]] || \
              [[ $BRANCH == "beta" && $NPM_TAG != "beta" ]]; then
-            echo "Error: Tag $NPM_TAG doesn't match branch $BRANCH"
-            exit 1
-          fi
-
-      - name: Check if version exists in NPM
-        if: (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'beta'))
-        run: |
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view $PACKAGE_NAME@$VERSION version > /dev/null 2>&1; then
-            echo "Error: Version $VERSION already exists"
+            echo "Error: Version tag $NPM_TAG doesn't match branch $BRANCH"
             exit 1
           fi
 
@@ -91,7 +85,10 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Lint code
-        run: bun --bun lint
+        run: bun lint
+
+      - name: Test code
+        run: bun run test
 
   publish:
     needs:
@@ -100,9 +97,6 @@ jobs:
     if: |
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta')
-    permissions:
-      contents: read
-      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -126,8 +120,6 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --access public --provenance --tag ${{ needs.version.outputs.npm_tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - uses: kirick13/npm-publish-notify-action@v1.2
         with:

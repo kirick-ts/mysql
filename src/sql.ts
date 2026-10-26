@@ -4,13 +4,13 @@ export type Compiled = { text: string; values: unknown[] };
 export type Fragment = { compile(): Compiled };
 export const fragment: unique symbol = Symbol('SQL fragment');
 
-/** Quote a single MySQL identifier without interpreting dots. */
+/** Quote each part of a qualified MySQL identifier. */
 export function identifier(name: string): string {
 	if (name.includes('\0')) {
 		throw new TypeError('SQL identifiers must not contain null bytes');
 	}
 
-	return '`' + name.replaceAll('`', '``') + '`';
+	return '`' + name.replaceAll('`', '``').replaceAll('.', '`.`') + '`';
 }
 
 export class SQLHelper implements SQL.Helper<Record<string, unknown>> {
@@ -75,15 +75,17 @@ function expand(helper: SQLHelper, prefix: string, values: unknown[]): string {
 		);
 	}
 
-	if (columns.length === 0 && context !== 'in') {
-		throw new SyntaxError(
-			`Cannot ${context === 'insert' ? 'INSERT' : 'UPDATE'} with no columns`,
-		);
+	if (columns.length === 0 && context === 'insert') {
+		throw new SyntaxError('Cannot INSERT with no columns');
 	}
 
 	if (context === 'in') {
-		if (columns.length > 1 && rows.length > 0) {
+		if (columns.length > 1) {
 			throw new SyntaxError('Cannot use WHERE IN helper with multiple columns');
+		}
+
+		if (rows.length === 0) {
+			return '(NULL) ';
 		}
 
 		return (

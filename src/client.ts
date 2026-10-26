@@ -15,7 +15,7 @@ function createSQL(
 	const options = optionsFrom(input, overrides);
 	const pool = new ClientPool(options);
 	/** Preserve the query runner's receiver when passing it to lazy queries. */
-	function run<T>(query: Query<T>): Promise<T> {
+	function run<T>(query: Query<T>): Promise<T & BunSQL.ResultMetadata> {
 		return pool.run(query);
 	}
 
@@ -64,6 +64,7 @@ function createSQL(
 
 	Object.assign(sql, {
 		options,
+		json: (value: unknown) => JSON.stringify(value),
 		unsafe,
 		close,
 		end: close,
@@ -99,6 +100,9 @@ export declare namespace SQL {
 	export type Options = BunSQL.Options;
 	export type PostgresOrMySQLOptions = BunSQL.PostgresOrMySQLOptions;
 	export type Query<T> = BunSQL.Query<T>;
+	export type ResultMetadata = BunSQL.ResultMetadata;
+	export type ResultColumn = BunSQL.ResultColumn;
+	export type ResultStatement = BunSQL.ResultStatement;
 	export type Helper<T> = BunSQL.Helper<T>;
 	export type MySQLError = BunSQL.MySQLError;
 	export type SQLError = BunSQL.SQLError;
