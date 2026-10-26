@@ -1,6 +1,5 @@
 import { defineConfig } from 'tsdown';
 
-// eslint-disable-next-line no-restricted-exports -- The tool expects a default configuration export.
 export default defineConfig({
 	fixedExtension: true,
 	// Bun's ambient declarations must remain imports in the published types.

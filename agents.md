@@ -53,11 +53,12 @@ Other omissions suggested during API review are proposals, not confirmed require
 - Reuse Bun's published SQL declarations instead of independently recreating public query, helper, and options interfaces. The reference is `bun-types@1.4.2` and Bun runtime 1.4.2.
 - Temporary MySQL and MariaDB Docker containers are authorized for testing. Package scripts may create them. Isolate their ports and storage, and clean up only containers created by the test run.
 - Lint the codebase with `bun lint`, using the executable supplied by `@kirick/lint`. Do not add a package script that shadows it or replace it with individual lint tools.
+- Keep TypeScript configurations at the project root, named `tsconfig.json` or `tsconfig.*.json`, so `@kirick/lint` discovers and checks all of them. Do not add separate scripts or commands to invoke `tsc` for individual configurations.
 - Fix Oxlint warnings where the code can be improved. For necessary behavior such as test logging or explicit test environment access, suppress the specific warning at that line with a reason; do not disable warnings across the codebase.
 - Include TypeScript tool configuration files in type checking so dependency upgrades cannot leave invalid build/test configurations undetected.
 - Preserve the user's `build` script and its standard `tsdown` command-line options. Add test commands without replacing the existing lint/build setup.
 - `check` is the one-shot command to lint, test, and build dist. Include `bun run build` in `test` only when tests exercise built output; otherwise it belongs in `check`.
-- The current tests import the built public package exports, so `test` builds first, runs `test:types` (including ESM/CommonJS consumer fixtures), and runs the shared Docker matrix. `check` runs `bun lint && bun run test`.
+- The current tests import the built public package exports, so `test` builds first and runs the shared Docker matrix. `bun lint` covers source and ESM/CommonJS consumer types through the root tsconfigs. `check` runs `bun lint && bun run test`.
 - Preserve `.npmignore` as the package publication filter. Extend it for new development files instead of deleting it or replacing it with a `package.json` files allowlist.
 - Keep mysql2 pinned while the parameter adapter uses its packet-writing boundary; validate upgrades with the full matrix.
 - Match runtime behavior on the same database server. MySQL and MariaDB may legitimately produce different wire types; any server-specific expectations must be identical for both providers.

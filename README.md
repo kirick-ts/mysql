@@ -113,9 +113,11 @@ bun run check
 ```
 
 `check` runs `bun lint` (the `@kirick/lint` executable) followed by `bun run test`.
+Lint automatically checks every root `tsconfig.json` and `tsconfig.*.json`,
+including the ESM/CommonJS consumer fixtures in `tsconfig.consumer.json`.
 The test command builds first because tests import the built public package
-exports. It then checks application and consumer types with `test:types`, verifies
-both exports with Node's native loaders, and executes the Docker matrix.
+exports. It then verifies both exports with Node's native loaders and executes
+the Docker matrix.
 `bun run test:docker` is an alias for `bun run test`. The `build` script retains
 the standard `tsdown` command and its options; `.npmignore` filters development
 files out of the published package.

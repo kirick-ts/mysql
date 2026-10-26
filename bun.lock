@@ -10,7 +10,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.4",
-        "@kirick/lint": "0.4.1",
+        "@kirick/lint": "0.4.2",
         "@types/node": "^22",
         "eslint": "10.7.0",
         "oxlint": "1.74.0",
@@ -133,7 +133,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@kirick/lint": ["@kirick/lint@0.4.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0", "eslint-plugin-jsdoc": "63.1.0", "eslint-plugin-n": "18.2.2", "eslint-plugin-promise": "7.3.0", "eslint-plugin-unicorn": "72.0.0", "eslint-plugin-vue": "10.9.2", "typescript-eslint": "8.64.0" }, "peerDependencies": { "eslint": "10.7.0", "oxlint": "1.74.0" }, "bin": { "lint-upgrade": "dist/main.mjs", "lint": "lint.sh" } }, "sha512-F2FYCFHKaI4pNOBFiYYYCBk+iiRBAOM/vxMMvF2mFFhBiUUDImphyakVLhWg4RTHy/CzLQgZhj8I/xGS7k810A=="],
+    "@kirick/lint": ["@kirick/lint@0.4.2", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0", "eslint-plugin-jsdoc": "63.1.0", "eslint-plugin-n": "18.2.2", "eslint-plugin-promise": "7.3.0", "eslint-plugin-unicorn": "72.0.0", "eslint-plugin-vue": "10.9.2", "typescript-eslint": "8.64.0" }, "peerDependencies": { "eslint": "10.7.0", "oxlint": "1.74.0" }, "bin": { "lint": "lint.sh", "lint-upgrade": "dist/main.mjs" } }, "sha512-LQVvIeIu8OFOi2NdmI5vGlsk2e6I9I7eaWOrBZ2WkDs+17CY6qLmA2jynVgx+zK9TSN8wOqs/6M+HWjK9YN/YQ=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.153.0", "", {}, "sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw=="],
 

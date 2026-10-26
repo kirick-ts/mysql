@@ -7,5 +7,5 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"files": ["consumer.mts", "consumer.cts"]
+	"files": ["test/consumer.mts", "test/consumer.cts"]
 }
